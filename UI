@@ -1,0 +1,265 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <fstream>
+#include <iomanip>
+#include <string>
+
+enum parseResulut {
+	SUCCESS = 0,
+	ERROR_OPENING_FILE = -1,
+	ERROR_INVALID_WORD = -2,
+	ERROR_NO_SPACE_TO_WRITE = -3,
+	ERROR_WORD_IS_NOT_FOUND = -4,
+	ERROR_WORD_IS_WRITTEN = 1
+};
+
+
+struct element{
+	std::string key; 
+	std::vector <int> wordPos; 
+};
+
+using namespace std; 
+
+vector <string> inputWordsBuff; 
+string inputTextBuff; 
+
+const int hashTableSize = 100; 
+element hashTable[hashTableSize]; 
+
+vector <int> search_positions(string& pat) {
+    int m = pat.length();
+    int n = inputTextBuff.length();
+    int badchar[256];
+    int s = 0;
+    vector <int> indexes_pattern_in_text; 
+
+    for (int i = 0; i < 256; i++) badchar[i] = -1;
+    for (int i = 0; i < m; i++) badchar[(int)pat[i]] = i;
+        
+    while (s <= (n - m)) {
+        int j = m - 1;
+        while (j >= 0 && pat[j] == inputTextBuff[s + j]) { j--; }
+        if (j < 0) {
+            indexes_pattern_in_text.push_back(s); 
+            s += (s + m < n) ? m - badchar[inputTextBuff[s + m]] : 1; 
+        }
+        else  s += (1 > j - badchar[inputTextBuff[s + j]]) ? 1 : j - badchar[inputTextBuff[s + j]];
+    }
+    return indexes_pattern_in_text; 
+} 
+int read_file() {
+	string fileName = "text.txt";
+	ifstream f(fileName); 
+	if (!f) return ERROR_OPENING_FILE;
+	while (!f.eof()) inputTextBuff += f.get(); 
+	inputTextBuff.pop_back(); 
+	f.close(); 
+	return SUCCESS; 
+}
+
+int read_words( ) {
+	string fileName = "words.txt";
+	ifstream f(fileName);  
+	if (!f) return ERROR_OPENING_FILE; 
+	while (!f.eof()) {
+		string buffword;
+		f >> buffword;
+		inputWordsBuff.push_back(buffword); 
+	}
+	f.close(); 
+	return SUCCESS; 
+}
+
+int write_file() {
+	std::ofstream f("Output.txt");
+	for (int i = 0; i < hashTableSize; i++) {
+		f << i << ". " << hashTable[i].key; 
+		for (auto& outWordPos : hashTable[i].wordPos) f << ' ' << outWordPos; 
+		f << "\n";
+	}
+	f.close(); return SUCCESS;
+}
+
+
+
+int give_hash(string key) {
+	int sum = 0;
+	for (int i = 0; i < key.size(); i++) {	
+		sum += key[i]; 
+	}
+	return abs(sum % hashTableSize); 
+} 
+
+int insert_in_hashTable(string key, vector <int> wordPos) {
+	int index = give_hash(key);
+	for (int i = 0; i < 10; i++) {
+		if (hashTable[index].key == key) return ERROR_WORD_IS_WRITTEN;
+		if (hashTable[index].key == "") {
+			hashTable[index].key = key;
+			hashTable[index].wordPos = wordPos;
+			return SUCCESS;
+		}
+		index = (++index) % hashTableSize;
+	}
+	return ERROR_NO_SPACE_TO_WRITE;
+}
+
+int find_in_hashTable(string key) {
+	int index = give_hash(key);
+	for (int i = 0; i < 10; i++) {
+		if (hashTable[index].key == key) { return index; }
+		index = (++index) % hashTableSize;
+	}
+	return ERROR_WORD_IS_NOT_FOUND;
+}
+
+void find_all_positions() { 
+	for (auto& inputWord : inputWordsBuff) {
+		vector <int> wordsPosBuff = search_positions(inputWord);
+		int result = insert_in_hashTable(inputWord, wordsPosBuff);
+	}
+} 
+
+
+
+
+void action_add_word() {
+	system("cls");
+	string wordBuff;
+	while (1) {
+		cout << "Введите слово которое хотите добавить в хэштаблицу и найти все его позиции в тексте\n"
+		     << "0 = выход\n";
+		cin >> wordBuff;
+		if (wordBuff == "0") break;
+		vector <int> wordsPosBuff = search_positions(wordBuff);
+		int result = insert_in_hashTable(wordBuff, wordsPosBuff);
+		if (result == SUCCESS) {
+			cout << "Слово успешно добавлено!\n";
+			if (!wordsPosBuff.empty()) {
+				cout << "Его позиции в тексте: ";
+				for (auto& outElement : wordsPosBuff) cout << outElement << ' ';
+				cout << "\n\n";
+			}
+			else cout << "В тексте данное слово не встречается!\n\n";
+		}
+		if (result == ERROR_WORD_IS_WRITTEN) cout << "Данное слово уже находится в таблице!\n\n";
+		if (result == ERROR_NO_SPACE_TO_WRITE) cout << "Ошибка! Треба рехэш!\n\n";
+	}
+}
+
+void action_delete_word() {
+	system("cls");
+	string wordBuff;
+	while (1) {
+		cout << "Введите слово, информацию о котором хотите удалить\n"
+			<< "0 = выход\n";
+		cin >> wordBuff;
+		if (wordBuff == "0") break;
+		int result = find_in_hashTable(wordBuff);
+		if (result != ERROR_WORD_IS_NOT_FOUND) {
+			hashTable[result].key = "";
+			hashTable[result].wordPos.clear();
+			cout << "Элемент успешно удалён!\n\n";
+		}
+		else cout <<"Слово не найдено!\n\n";
+	}
+}
+
+void action_find_word() {
+	system("cls");
+	string wordBuff;
+	while (1) {
+		cout << "Введите слово, информацию о котором хотите найти\n"
+			<< "0 = выход\n";
+		cin >> wordBuff;
+		if (wordBuff == "0") break;
+		int result = find_in_hashTable(wordBuff);
+		if (result != ERROR_WORD_IS_NOT_FOUND) {
+			cout << "Слово имеет идекс в хэш-таблице: ";
+			cout << result << "\n"; 
+			cout << "Индексы вхождения данного слово в веденный текст: ";
+			for (auto& outWordPos : hashTable[result].wordPos) cout << outWordPos << ' ';
+			cout << "\n\n";
+		}
+		else cout << "Слово не найдено!\n\n";
+	}
+}
+
+const string decorativeLine = "=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=-+-=\n";
+
+void view_text_on_screen() {
+	cout << decorativeLine <<"Считанный текст: \n";
+	cout << inputTextBuff << "\n";	
+	cout << decorativeLine;
+	system("pause");
+}
+
+void view_words_on_screen() {
+	cout << decorativeLine << "\nСлова считанные с файла: \n\n";
+	for (auto& outWord : inputWordsBuff) cout << outWord << "\n";
+	cout << decorativeLine;
+	system("pause");
+}
+
+void view_hashTable_on_screen() {
+	cout << decorativeLine;
+	for (int i = 0; i < hashTableSize; i++) {
+		if (hashTable[i].key != "") {
+			cout << setw(3) << right << i << ". " << setw(12) << left << hashTable[i].key;
+			for (auto &outWordPos : hashTable[i].wordPos) cout << outWordPos << ' ';
+			cout << "\n";
+		}
+	}
+	cout << decorativeLine;
+	system("pause");
+}
+
+
+
+int print_actions_list_and_select() {
+	system("cls");
+	cout << "Введите номер действия, которое хотите выполнить\n"
+		<< "1.Удалить информацию о слове\n"
+		<< "2.Добавить слово и отобразить его позиции в тексте\n"
+		<< "3.Найти вхождения слова в текст\n"
+		<< "4.Вывести хэш-таблицу на экран\n"
+		<< "5.Вывести считанный текст на экран\n"
+		<< "6.Вывести считанные слова на экран\n"
+		<< "7.Сохранить в фаил и выйти\n";
+	int choice; 
+	cin >> choice;
+	return choice; 
+}
+
+void select_action() {
+	bool stopWhileFlag = 0; 
+	while (!stopWhileFlag) {
+		int choice = print_actions_list_and_select(); 
+		cin.ignore(32767, '\n'); 
+		switch (choice) { 
+			case 1:	action_delete_word();			 break;
+			case 2:	action_add_word();				 break;
+			case 3:	action_find_word();				 break;
+			case 4:	view_hashTable_on_screen();		 break;
+			case 5:	view_text_on_screen();			 break;
+			case 6:	view_words_on_screen();			 break;
+			case 7:	write_file(); stopWhileFlag = 1; break;
+			default: break;
+		}
+	}
+}
+
+
+int main() {
+
+
+	if (read_file() == ERROR_OPENING_FILE) { cout << "Ошибка открытия файла input.txt"; return ERROR_OPENING_FILE; }
+	if (read_words() == ERROR_OPENING_FILE) { cout << "Ошибка открытия файла words.txt"; return ERROR_OPENING_FILE; }
+
+	find_all_positions();
+	select_action();
+
+	return SUCCESS;
+}
